@@ -138,47 +138,51 @@ const getWhatsAppStatus = () => {
   };
 };
 
-// Send WhatsApp message to Channel
+// Send WhatsApp message to Channel with Retry Logic
 const sendWhatsAppChannelMessage = async (studentName, enrollmentNumber, punchInTime, punchOutTime, workingHours) => {
-  try {
-    // Initialize client if not already done
-    if (!client) {
-      console.log('📱 Client not initialized, initializing now...');
-      initializeWhatsApp();
-    }
+  const MAX_RETRIES = 3;
+  let lastError = null;
 
-    console.log(`⏳ Waiting for WhatsApp client to be ready (current status: ${isClientReady})`);
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      // Initialize client if not already done
+      if (!client) {
+        console.log('📱 Client not initialized, initializing now...');
+        initializeWhatsApp();
+      }
 
-    // Wait for client to be ready (max 30 seconds)
-    let retries = 0;
-    while (!isClientReady && retries < 30) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      retries++;
-    }
+      console.log(`⏳ Waiting for WhatsApp client to be ready (attempt ${attempt}/${MAX_RETRIES}, status: ${isClientReady})`);
 
-    if (!isClientReady) {
-      console.error('❌ WhatsApp client not ready after 30 seconds');
-      return {
-        success: false,
-        error: 'WhatsApp client not connected. Please scan QR code.',
-        message: 'WhatsApp not ready - scan QR code in terminal'
-      };
-    }
+      // Wait for client to be ready (max 30 seconds)
+      let retries = 0;
+      while (!isClientReady && retries < 30) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        retries++;
+      }
 
-    const channelId = process.env.WHATSAPP_CHANNEL_ID;
-    if (!channelId) {
-      console.error('❌ WHATSAPP_CHANNEL_ID not configured in .env');
-      return {
-        success: false,
-        error: 'Channel not configured',
-        message: 'WhatsApp channel not configured'
-      };
-    }
+      if (!isClientReady) {
+        console.error('❌ WhatsApp client not ready after 30 seconds');
+        return {
+          success: false,
+          error: 'WhatsApp client not connected. Please scan QR code.',
+          message: 'WhatsApp not ready - scan QR code in terminal'
+        };
+      }
 
-    console.log(`📱 Sending message to Channel: ${channelId}`);
+      const channelId = process.env.WHATSAPP_CHANNEL_ID;
+      if (!channelId) {
+        console.error('❌ WHATSAPP_CHANNEL_ID not configured in .env');
+        return {
+          success: false,
+          error: 'Channel not configured',
+          message: 'WhatsApp channel not configured'
+        };
+      }
 
-    // Create message for channel
-    const message = `📌 *ATTENDANCE UPDATE*
+      console.log(`📱 Sending message to Channel: ${channelId} (Attempt ${attempt}/${MAX_RETRIES})`);
+
+      // Create message for channel
+      const message = `📌 *ATTENDANCE UPDATE*
 
 👤 *Student:* ${studentName}
 🎓 *Enrollment:* ${enrollmentNumber}
@@ -189,27 +193,75 @@ const sendWhatsAppChannelMessage = async (studentName, enrollmentNumber, punchIn
 
 ✅ Attendance recorded successfully`;
 
-    console.log('📨 Sending message to WhatsApp Channel...');
+      console.log('📨 Sending message to WhatsApp Channel...');
 
-    // Send message to channel
-    const response = await client.sendMessage(channelId, message);
+      // Send message to channel with timeout protection
+      const sendPromise = client.sendMessage(channelId, message);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Message send timeout after 10 seconds')), 10000)
+      );
 
-    console.log(`✅ WhatsApp channel message sent. Message ID: ${response.id}`);
-    return {
-      success: true,
-      messageId: response.id,
-      message: 'Attendance posted to WhatsApp channel',
-      channel: channelId
-    };
-  } catch (error) {
-    console.error(`❌ Failed to send WhatsApp channel message: ${error.message}`);
-    console.error('Error details:', error);
-    return {
-      success: false,
-      error: error.message,
-      message: 'Failed to post to channel, but attendance recorded'
-    };
+      const response = await Promise.race([sendPromise, timeoutPromise]);
+
+      console.log(`✅ WhatsApp channel message sent successfully! Message ID: ${response.id}`);
+      return {
+        success: true,
+        messageId: response.id,
+        message: 'Attendance posted to WhatsApp channel',
+        channel: channelId
+      };
+
+    } catch (error) {
+      lastError = error;
+      console.error(`⚠️ Attempt ${attempt}/${MAX_RETRIES} failed: ${error.message}`);
+      
+      // Check if this is a detached frame or connection error
+      const isFrameError = error.message && (
+        error.message.includes('detached Frame') || 
+        error.message.includes('disconnected') ||
+        error.message.includes('timeout') ||
+        error.message.includes('ECONNREFUSED')
+      );
+
+      if (isFrameError && attempt < MAX_RETRIES) {
+        console.log(`🔄 Browser frame error detected. Reconnecting... (${attempt}/${MAX_RETRIES})`);
+        
+        // Reset client and reconnect
+        if (client) {
+          try {
+            await client.destroy();
+          } catch (e) {
+            console.log('Note: Client destroy threw error (expected):', e.message);
+          }
+        }
+        client = null;
+        isClientReady = false;
+        
+        // Wait before retrying with exponential backoff
+        const waitTime = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
+        console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        
+        // Reinitialize
+        initializeWhatsApp();
+        continue;
+      }
+
+      // If not a retryable error or last attempt, break
+      if (attempt === MAX_RETRIES) {
+        console.error(`❌ Failed after ${MAX_RETRIES} attempts: ${error.message}`);
+        break;
+      }
+    }
   }
+
+  // All retries exhausted
+  console.error(`❌ Could not send message after ${MAX_RETRIES} attempts. Last error: ${lastError?.message}`);
+  return {
+    success: false,
+    error: lastError?.message || 'Unknown error',
+    message: 'Failed to post to channel, but attendance recorded'
+  };
 };
 
 module.exports = {
