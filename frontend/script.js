@@ -186,6 +186,31 @@ async function checkAPIStatus() {
     }
 }
 
+// Update button states explicitly
+function updateButtonStates(status) {
+    console.log(`🔘 Updating button states - Current status: ${status}`);
+    
+    const punchInBtn = document.getElementById('punchInBtn');
+    const punchOutBtn = document.getElementById('punchOutBtn');
+    
+    if (status === 'punched-in') {
+        // Punched in: disable punch-in, enable punch-out
+        punchInBtn.disabled = true;
+        punchOutBtn.disabled = false;
+        console.log('✅ Punch In disabled, Punch Out ENABLED');
+    } else if (status === 'punched-out') {
+        // Punched out: enable punch-in, disable punch-out
+        punchInBtn.disabled = false;
+        punchOutBtn.disabled = true;
+        console.log('✅ Punch In ENABLED, Punch Out disabled');
+    } else {
+        // Not checked in: enable punch-in, disable punch-out
+        punchInBtn.disabled = false;
+        punchOutBtn.disabled = true;
+        console.log('✅ Punch In ENABLED, Punch Out disabled (no record)');
+    }
+}
+
 // Load today's attendance
 async function loadTodayAttendance() {
     try {
@@ -217,15 +242,19 @@ async function loadTodayAttendance() {
                     attendance.workingHours + ' hours';
             }
 
-            // Update button states
-            document.getElementById('punchInBtn').disabled = attendance.status === 'punched-in';
-            document.getElementById('punchOutBtn').disabled = attendance.status === 'punched-out';
+            // Update button states using new function
+            updateButtonStates(attendance.status);
             
-            console.log('✅ Attendance UI updated');
+            console.log('✅ Attendance UI updated - Status: ' + attendance.status);
         } else {
             document.getElementById('statusDisplay').textContent = 'Not Checked In';
-            document.getElementById('punchInBtn').disabled = false;
-            document.getElementById('punchOutBtn').disabled = true;
+            document.getElementById('punchInDisplay').textContent = '-';
+            document.getElementById('punchOutDisplay').textContent = '-';
+            document.getElementById('workingHoursDisplay').textContent = '-';
+            
+            // Update button states
+            updateButtonStates('not-checked-in');
+            
             console.log('ℹ️ No attendance record for today');
         }
     } catch (error) {
@@ -245,6 +274,13 @@ async function punchIn() {
             return;
         }
 
+        const punchInBtn = document.getElementById('punchInBtn');
+        const punchOutBtn = document.getElementById('punchOutBtn');
+        
+        // Disable button to prevent double-click
+        punchInBtn.disabled = true;
+        console.log('🔒 Punch In button disabled to prevent double-click');
+
         const response = await fetch(`${API_URL}/attendance/punch-in`, {
             method: 'POST',
             headers: {
@@ -257,22 +293,41 @@ async function punchIn() {
         console.log('📡 Response:', response.status, data);
 
         if (response.ok) {
-            console.log('✅ Punch-In successful');
+            console.log('✅ Punch-In successful - Record created');
             showAlert('✅ Punched in successfully!', 'success');
-            loadTodayAttendance();
+            
+            // Wait a moment for database to be ready, then refresh
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            console.log('🔄 Refreshing attendance data...');
+            await loadTodayAttendance();
+            
+            // Double-check button states
+            console.log(`🔘 Button states after refresh - Punch In disabled: ${punchInBtn.disabled}, Punch Out disabled: ${punchOutBtn.disabled}`);
         } else {
             console.error('❌ Punch-In failed:', data.message);
             showAlert(data.message || 'Punch in failed', 'error');
+            punchInBtn.disabled = false; // Re-enable button on error
         }
     } catch (error) {
         console.error('❌ Punch-In Error:', error);
         showAlert('❌ Network error: ' + error.message + '\n\nCheck if API is running at: ' + API_URL, 'error');
+        document.getElementById('punchInBtn').disabled = false; // Re-enable button on error
     }
 }
 
 // Punch Out
 async function punchOut() {
+    console.log('🔄 Sending punch-out request to API...');
+    
     try {
+        const punchInBtn = document.getElementById('punchInBtn');
+        const punchOutBtn = document.getElementById('punchOutBtn');
+        
+        // Disable button to prevent double-click
+        punchOutBtn.disabled = true;
+        console.log('🔒 Punch Out button disabled to prevent double-click');
+
         const response = await fetch(`${API_URL}/attendance/punch-out`, {
             method: 'POST',
             headers: {
@@ -282,9 +337,11 @@ async function punchOut() {
         });
 
         const data = await response.json();
+        console.log('📡 Response:', response.status, data);
 
         if (response.ok) {
-            showAlert('Punched out successfully!', 'success');
+            console.log('✅ Punch-Out successful');
+            showAlert('✅ Punched out successfully!', 'success');
             
             // Display WhatsApp notification status
             if (data.parentNotification) {
@@ -294,20 +351,33 @@ async function punchOut() {
                 if (data.parentNotification.sent) {
                     notificationDiv.className = 'whatsapp-notification';
                     notificationMsg.textContent = `✅ ${data.parentNotification.message}`;
+                    console.log('📱 WhatsApp message sent successfully');
                 } else {
                     notificationDiv.className = 'whatsapp-notification error';
                     notificationMsg.textContent = `⚠️ ${data.parentNotification.message}`;
+                    console.log('📱 WhatsApp message failed:', data.parentNotification.message);
                 }
                 notificationDiv.style.display = 'block';
             }
             
-            loadTodayAttendance();
-            loadAttendanceHistory();
+            // Wait a moment for database to be ready, then refresh
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            console.log('🔄 Refreshing attendance data...');
+            await loadTodayAttendance();
+            await loadAttendanceHistory();
+            
+            // Double-check button states
+            console.log(`🔘 Button states after refresh - Punch In disabled: ${punchInBtn.disabled}, Punch Out disabled: ${punchOutBtn.disabled}`);
         } else {
+            console.error('❌ Punch-Out failed:', data.message);
             showAlert(data.message || 'Punch out failed', 'error');
+            punchOutBtn.disabled = false; // Re-enable button on error
         }
     } catch (error) {
+        console.error('❌ Punch-Out Error:', error);
         showAlert('Server error: ' + error.message, 'error');
+        document.getElementById('punchOutBtn').disabled = false; // Re-enable button on error
     }
 }
 
