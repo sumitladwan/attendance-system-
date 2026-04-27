@@ -3,6 +3,7 @@ const router = express.Router();
 const Attendance = require('../models/Attendance');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
+const { sendWhatsAppMessage } = require('../services/whatsappService');
 
 // Punch In
 router.post('/punch-in', auth, async (req, res) => {
@@ -78,6 +79,21 @@ router.post('/punch-out', auth, async (req, res) => {
 
     await attendance.save();
 
+    // Get user details for WhatsApp message
+    const user = await User.findById(req.userId);
+    
+    // Send WhatsApp message to parent
+    let messageResult = { success: false, message: 'Message not sent' };
+    if (user && user.parentPhone && process.env.TWILIO_ACCOUNT_SID) {
+      messageResult = await sendWhatsAppMessage(
+        user.parentPhone,
+        user.name,
+        attendance.punchInTime,
+        attendance.punchOutTime,
+        attendance.workingHours
+      );
+    }
+
     res.json({
       message: 'Punched out successfully',
       attendance: {
@@ -85,6 +101,10 @@ router.post('/punch-out', auth, async (req, res) => {
         punchOutTime: attendance.punchOutTime,
         workingHours: attendance.workingHours,
         status: attendance.status
+      },
+      parentNotification: {
+        sent: messageResult.success,
+        message: messageResult.message || messageResult.error
       }
     });
   } catch (error) {

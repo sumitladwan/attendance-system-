@@ -223,6 +223,22 @@ async function punchOut() {
 
         if (response.ok) {
             showAlert('Punched out successfully!', 'success');
+            
+            // Display WhatsApp notification status
+            if (data.parentNotification) {
+                const notificationDiv = document.getElementById('whatsappNotification');
+                const notificationMsg = document.getElementById('whatsappMessage');
+                
+                if (data.parentNotification.sent) {
+                    notificationDiv.className = 'whatsapp-notification';
+                    notificationMsg.textContent = `✅ ${data.parentNotification.message}`;
+                } else {
+                    notificationDiv.className = 'whatsapp-notification error';
+                    notificationMsg.textContent = `⚠️ ${data.parentNotification.message}`;
+                }
+                notificationDiv.style.display = 'block';
+            }
+            
             loadTodayAttendance();
             loadAttendanceHistory();
         } else {
