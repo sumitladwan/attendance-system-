@@ -18,11 +18,11 @@ router.post('/punch-in', auth, async (req, res) => {
 
     console.log(`👤 User found: ${user.name}`);
 
-    // Check if already punched in today
+    // Check if already have attendance record today
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    console.log(`📅 Checking for punch-in records for date: ${today.toISOString()}`);
+    console.log(`📅 Checking for attendance records for date: ${today.toISOString()}`);
     
     const existingRecord = await Attendance.findOne({
       userId: req.userId,
@@ -31,11 +31,25 @@ router.post('/punch-in', auth, async (req, res) => {
 
     if (existingRecord) {
       console.log(`⚠️ Existing record found - Status: ${existingRecord.status}`);
+      
+      // If already punched in today - can't punch in again
       if (existingRecord.status === 'punched-in') {
-        console.log(`❌ User already punched in at: ${existingRecord.punchInTime}`);
+        console.log(`❌ Already punched in at: ${existingRecord.punchInTime}`);
         return res.status(400).json({ 
-          message: 'Already punched in today',
-          punchInTime: existingRecord.punchInTime 
+          message: 'Already punched in today. Please punch out first.',
+          punchInTime: existingRecord.punchInTime,
+          existingStatus: 'punched-in'
+        });
+      }
+      
+      // If already punched out today - can't punch in again (day is complete)
+      if (existingRecord.status === 'punched-out') {
+        console.log(`❌ Already punched out at: ${existingRecord.punchOutTime}. Cannot punch in again today.`);
+        return res.status(400).json({ 
+          message: 'You have already completed your attendance today. Try tomorrow.',
+          punchOutTime: existingRecord.punchOutTime,
+          workingHours: existingRecord.workingHours,
+          existingStatus: 'punched-out'
         });
       }
     }
@@ -71,6 +85,8 @@ router.post('/punch-in', auth, async (req, res) => {
 // Punch Out
 router.post('/punch-out', auth, async (req, res) => {
   try {
+    console.log(`⏰ Punch-Out Request - User ID: ${req.userId}`);
+    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -81,11 +97,19 @@ router.post('/punch-out', auth, async (req, res) => {
     });
 
     if (!attendance) {
+      console.log(`❌ No punch-in record found for today`);
       return res.status(404).json({ message: 'No punch in record found for today' });
     }
 
+    console.log(`👤 Found record - Current status: ${attendance.status}`);
+
     if (attendance.status === 'punched-out') {
-      return res.status(400).json({ message: 'Already punched out today' });
+      console.log(`❌ Already punched out at: ${attendance.punchOutTime}`);
+      return res.status(400).json({ 
+        message: 'Already punched out today',
+        punchOutTime: attendance.punchOutTime,
+        workingHours: attendance.workingHours
+      });
     }
 
     // Update punch out time
@@ -97,6 +121,7 @@ router.post('/punch-out', auth, async (req, res) => {
     attendance.workingHours = parseFloat((diffMs / (1000 * 60 * 60)).toFixed(2));
 
     await attendance.save();
+    console.log(`✅ Punch-Out successful - Working hours: ${attendance.workingHours}`);
 
     // Get user details for WhatsApp message
     const user = await User.findById(req.userId);
