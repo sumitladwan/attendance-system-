@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Attendance System</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Login/Register Form -->
+        <div id="authContainer" class="auth-container">
+            <div class="form-container">
+                <h1>Student Attendance System</h1>
+                
+                <!-- Login Form -->
+                <div id="loginForm" class="form active">
+                    <h2>Login</h2>
+                    <input type="email" id="loginEmail" placeholder="Email" required>
+                    <input type="password" id="loginPassword" placeholder="Password" required>
+                    <button onclick="login()">Login</button>
+                    <p>Don't have an account? <a href="#" onclick="toggleForms()">Register here</a></p>
+                </div>
+
+                <!-- Register Form -->
+                <div id="registerForm" class="form">
+                    <h2>Create Account</h2>
+                    <input type="text" id="registerName" placeholder="Full Name" required>
+                    <input type="email" id="registerEmail" placeholder="Email" required>
+                    <input type="text" id="enrollmentNumber" placeholder="Enrollment Number" required>
+                    <input type="password" id="registerPassword" placeholder="Password (min 6 characters)" required>
+                    <button onclick="register()">Register</button>
+                    <p>Already have an account? <a href="#" onclick="toggleForms()">Login here</a></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard -->
+        <div id="dashboardContainer" class="dashboard-container" style="display: none;">
+            <div class="dashboard">
+                <div class="header">
+                    <div>
+                        <h1>Welcome, <span id="studentName"></span></h1>
+                        <p>Enrollment: <span id="enrollmentDisplay"></span></p>
+                    </div>
+                    <button class="logout-btn" onclick="logout()">Logout</button>
+                </div>
+
+                <!-- Attendance Status -->
+                <div class="status-section">
+                    <h2>Today's Attendance</h2>
+                    <div class="status-box">
+                        <p>Status: <span id="statusDisplay">Not Checked In</span></p>
+                        <p>Punch In Time: <span id="punchInDisplay">-</span></p>
+                        <p>Punch Out Time: <span id="punchOutDisplay">-</span></p>
+                        <p>Working Hours: <span id="workingHoursDisplay">-</span></p>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="action-section">
+                    <button id="punchInBtn" class="btn-punch-in" onclick="punchIn()">Punch In</button>
+                    <button id="punchOutBtn" class="btn-punch-out" onclick="punchOut()" disabled>Punch Out</button>
+                </div>
+
+                <!-- Attendance History -->
+                <div class="history-section">
+                    <h2>Attendance History</h2>
+                    <div class="table-container">
+                        <table id="attendanceTable">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Punch In</th>
+                                    <th>Punch Out</th>
+                                    <th>Working Hours</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendanceBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
