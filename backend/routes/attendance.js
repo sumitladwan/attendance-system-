@@ -84,7 +84,7 @@ router.post('/punch-out', auth, async (req, res) => {
     
     // Send WhatsApp message to parent
     let messageResult = { success: false, message: 'Message not sent' };
-    if (user && user.parentPhone && process.env.TWILIO_ACCOUNT_SID) {
+    if (user && user.parentPhone && process.env.WHATSAPP_ENABLED === 'true') {
       messageResult = await sendWhatsAppMessage(
         user.parentPhone,
         user.name,
