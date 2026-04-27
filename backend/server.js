@@ -2,12 +2,19 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const { initializeWhatsApp, getWhatsAppStatus } = require('./services/whatsappService');
 
 const app = express();
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Initialize WhatsApp
+if (process.env.WHATSAPP_ENABLED === 'true') {
+  console.log('🚀 Initializing WhatsApp...');
+  initializeWhatsApp();
+}
 
 // MongoDB Connection
 mongoose
@@ -22,6 +29,12 @@ app.use('/api/attendance', require('./routes/attendance'));
 // Basic route
 app.get('/', (req, res) => {
   res.json({ message: 'Student Attendance Tracking System API' });
+});
+
+// WhatsApp status endpoint
+app.get('/api/whatsapp-status', (req, res) => {
+  const status = getWhatsAppStatus();
+  res.json(status);
 });
 
 // Error handling middleware
