@@ -1,0 +1,23 @@
+{
+  "name": "attendance-system",
+  "version": "1.0.0",
+  "description": "Student Attendance Tracking System - Full Stack",
+  "main": "index.js",
+  "scripts": {
+    "start": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd backend && npm start",
+    "client": "cd frontend && python -m http.server 8000",
+    "install-all": "npm install && cd backend && npm install && cd ../frontend && echo 'Frontend ready'",
+    "dev": "concurrently \"npm run server\" \"npm run client\""
+  },
+  "keywords": [
+    "attendance",
+    "student",
+    "tracking"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^7.6.0"
+  }
+}
