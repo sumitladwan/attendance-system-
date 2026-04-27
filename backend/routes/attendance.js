@@ -18,43 +18,31 @@ router.post('/punch-in', auth, async (req, res) => {
 
     console.log(`👤 User found: ${user.name}`);
 
-    // Check if already have attendance record today
+    // Check if currently punched in (can't punch in twice without punching out first)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    console.log(`📅 Checking for attendance records for date: ${today.toISOString()}`);
+    console.log(`📅 Checking for active punch-in for date: ${today.toISOString()}`);
     
-    const existingRecord = await Attendance.findOne({
+    // Find the LAST record for today (most recent punch)
+    const lastRecord = await Attendance.findOne({
       userId: req.userId,
       date: { $gte: today }
-    });
+    }).sort({ createdAt: -1 });
 
-    if (existingRecord) {
-      console.log(`⚠️ Existing record found - Status: ${existingRecord.status}`);
-      
-      // If already punched in today - can't punch in again
-      if (existingRecord.status === 'punched-in') {
-        console.log(`❌ Already punched in at: ${existingRecord.punchInTime}`);
-        return res.status(400).json({ 
-          message: 'Already punched in today. Please punch out first.',
-          punchInTime: existingRecord.punchInTime,
-          existingStatus: 'punched-in'
-        });
-      }
-      
-      // If already punched out today - can't punch in again (day is complete)
-      if (existingRecord.status === 'punched-out') {
-        console.log(`❌ Already punched out at: ${existingRecord.punchOutTime}. Cannot punch in again today.`);
-        return res.status(400).json({ 
-          message: 'You have already completed your attendance today. Try tomorrow.',
-          punchOutTime: existingRecord.punchOutTime,
-          workingHours: existingRecord.workingHours,
-          existingStatus: 'punched-out'
-        });
-      }
+    if (lastRecord && lastRecord.status === 'punched-in') {
+      console.log(`⚠️ Currently punched-in - Status: ${lastRecord.status}`);
+      console.log(`❌ Already punched in at: ${lastRecord.punchInTime}`);
+      return res.status(400).json({ 
+        message: 'You are already punched in. Please punch out first.',
+        punchInTime: lastRecord.punchInTime,
+        recordId: lastRecord._id
+      });
     }
 
-    // Create new attendance record
+    console.log(`✅ Can punch in - Either no record or already punched out`);
+
+    // Create new attendance record (allows multiple punch-in/out cycles per day)
     const attendance = new Attendance({
       userId: req.userId,
       studentName: user.name,
@@ -64,7 +52,8 @@ router.post('/punch-in', auth, async (req, res) => {
     });
 
     await attendance.save();
-    console.log(`✅ Punch-In successful - Record ID: ${attendance._id}`);
+    const cycleCount = await Attendance.countDocuments({ userId: req.userId, date: { $gte: today } });
+    console.log(`✅ Punch-In successful - Record ID: ${attendance._id} (Cycle ${cycleCount} today)`);
 
     res.status(201).json({
       message: 'Punched in successfully',
@@ -82,7 +71,7 @@ router.post('/punch-in', auth, async (req, res) => {
   }
 });
 
-// Punch Out
+// Punch Out - Allow multiple punch-out cycles per day
 router.post('/punch-out', auth, async (req, res) => {
   try {
     console.log(`⏰ Punch-Out Request - User ID: ${req.userId}`);
@@ -90,38 +79,30 @@ router.post('/punch-out', auth, async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Find today's attendance record
+    // Find the LAST punched-in record (most recent one that's currently punched-in)
     const attendance = await Attendance.findOne({
       userId: req.userId,
-      date: { $gte: today }
-    });
+      date: { $gte: today },
+      status: 'punched-in'
+    }).sort({ createdAt: -1 });
 
     if (!attendance) {
-      console.log(`❌ No punch-in record found for today`);
-      return res.status(404).json({ message: 'No punch in record found for today' });
+      console.log(`❌ No active punch-in record found for today`);
+      return res.status(404).json({ message: 'You are not currently punched in' });
     }
 
-    console.log(`👤 Found record - Current status: ${attendance.status}`);
-
-    if (attendance.status === 'punched-out') {
-      console.log(`❌ Already punched out at: ${attendance.punchOutTime}`);
-      return res.status(400).json({ 
-        message: 'Already punched out today',
-        punchOutTime: attendance.punchOutTime,
-        workingHours: attendance.workingHours
-      });
-    }
+    console.log(`👤 Found punch-in record - Punch-In time: ${attendance.punchInTime}`);
 
     // Update punch out time
     attendance.punchOutTime = new Date();
     attendance.status = 'punched-out';
 
-    // Calculate working hours
+    // Calculate working hours for this cycle
     const diffMs = attendance.punchOutTime - attendance.punchInTime;
     attendance.workingHours = parseFloat((diffMs / (1000 * 60 * 60)).toFixed(2));
 
     await attendance.save();
-    console.log(`✅ Punch-Out successful - Working hours: ${attendance.workingHours}`);
+    console.log(`✅ Punch-Out successful - Working hours for this cycle: ${attendance.workingHours}`);
 
     // Get user details for WhatsApp message
     const user = await User.findById(req.userId);
@@ -165,7 +146,7 @@ router.get('/today', auth, async (req, res) => {
     const attendance = await Attendance.findOne({
       userId: req.userId,
       date: { $gte: today }
-    });
+    }).sort({ createdAt: -1 }); // Get the LAST (most recent) record for today
 
     res.json({ attendance: attendance || null });
   } catch (error) {
@@ -176,7 +157,8 @@ router.get('/today', auth, async (req, res) => {
 // Get all attendance records for student
 router.get('/history', auth, async (req, res) => {
   try {
-    const attendance = await Attendance.find({ userId: req.userId }).sort({ date: -1 });
+    // Get all records sorted by date (newest first), then by creation time within same day
+    const attendance = await Attendance.find({ userId: req.userId }).sort({ date: -1, createdAt: -1 });
     res.json({ attendance });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
