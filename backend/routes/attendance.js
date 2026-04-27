@@ -8,22 +8,36 @@ const { sendWhatsAppMessage } = require('../services/whatsappService');
 // Punch In
 router.post('/punch-in', auth, async (req, res) => {
   try {
+    console.log(`⏰ Punch-In Request - User ID: ${req.userId}`);
+    
     const user = await User.findById(req.userId);
     if (!user) {
+      console.log(`❌ User not found: ${req.userId}`);
       return res.status(404).json({ message: 'User not found' });
     }
+
+    console.log(`👤 User found: ${user.name}`);
 
     // Check if already punched in today
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    
+    console.log(`📅 Checking for punch-in records for date: ${today.toISOString()}`);
     
     const existingRecord = await Attendance.findOne({
       userId: req.userId,
       date: { $gte: today }
     });
 
-    if (existingRecord && existingRecord.status === 'punched-in') {
-      return res.status(400).json({ message: 'Already punched in today' });
+    if (existingRecord) {
+      console.log(`⚠️ Existing record found - Status: ${existingRecord.status}`);
+      if (existingRecord.status === 'punched-in') {
+        console.log(`❌ User already punched in at: ${existingRecord.punchInTime}`);
+        return res.status(400).json({ 
+          message: 'Already punched in today',
+          punchInTime: existingRecord.punchInTime 
+        });
+      }
     }
 
     // Create new attendance record
@@ -36,15 +50,20 @@ router.post('/punch-in', auth, async (req, res) => {
     });
 
     await attendance.save();
+    console.log(`✅ Punch-In successful - Record ID: ${attendance._id}`);
 
     res.status(201).json({
       message: 'Punched in successfully',
       attendance: {
+        id: attendance._id,
         punchInTime: attendance.punchInTime,
-        status: attendance.status
+        status: attendance.status,
+        studentName: attendance.studentName
       }
     });
   } catch (error) {
+    console.error(`❌ Punch-In Error: ${error.message}`);
+    console.error('Stack:', error.stack);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

@@ -1,4 +1,26 @@
-const API_URL = 'http://localhost:5000/api';
+// Dynamically set API URL based on environment
+const getAPIURL = () => {
+  // If running locally (localhost or 127.0.0.1)
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'http://localhost:5000/api';
+  }
+  
+  // For deployed version, use relative path or construct from current host
+  // If backend is on same server as frontend (recommended for deployment)
+  if (window.location.port === '8000' || window.location.port === '3000') {
+    // Frontend is on 8000/3000, backend on 5000
+    return `http://${window.location.hostname}:5000/api`;
+  }
+  
+  // If API is on same domain/port (e.g., both under same server)
+  return `${window.location.protocol}//${window.location.host}/api`;
+};
+
+const API_URL = getAPIURL();
+
+// Log API URL for debugging
+console.log('🔌 Using API URL:', API_URL);
+
 let authToken = null;
 let currentUser = null;
 
@@ -114,6 +136,8 @@ function logout() {
 
 // Show dashboard
 function showDashboard() {
+    console.log('📊 Loading dashboard for user:', currentUser.name);
+    
     document.getElementById('authContainer').style.display = 'none';
     document.getElementById('dashboardContainer').style.display = 'block';
     
@@ -121,6 +145,9 @@ function showDashboard() {
     document.getElementById('studentName').textContent = currentUser.name;
     document.getElementById('enrollmentDisplay').textContent = currentUser.enrollmentNumber;
     document.getElementById('parentPhoneDisplay').textContent = currentUser.parentPhone;
+    
+    // Check API status
+    checkAPIStatus();
     
     // Load attendance data
     loadTodayAttendance();
@@ -144,9 +171,26 @@ function showLoginForm() {
     document.getElementById('registerPassword').value = '';
 }
 
+// Check API Connection Status
+async function checkAPIStatus() {
+    try {
+        const response = await fetch(`${API_URL.replace('/api', '')}/`, {
+            method: 'GET'
+        });
+        const data = await response.json();
+        console.log('✅ API Status: Connected', data);
+        return true;
+    } catch (error) {
+        console.error('❌ API Status: Disconnected', error);
+        return false;
+    }
+}
+
 // Load today's attendance
 async function loadTodayAttendance() {
     try {
+        console.log('⏳ Loading today\'s attendance...');
+        
         const response = await fetch(`${API_URL}/attendance/today`, {
             headers: {
                 'Authorization': `Bearer ${authToken}`
@@ -154,12 +198,14 @@ async function loadTodayAttendance() {
         });
 
         const data = await response.json();
+        console.log('📊 Attendance data:', data);
+        
         const attendance = data.attendance;
 
         if (attendance) {
             const punchInTime = new Date(attendance.punchInTime);
             document.getElementById('statusDisplay').textContent = 
-                attendance.status === 'punched-in' ? 'Punched In' : 'Punched Out';
+                attendance.status === 'punched-in' ? 'Punched In ✅' : 'Punched Out ⏹️';
             document.getElementById('punchInDisplay').textContent = 
                 punchInTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
             
@@ -174,19 +220,31 @@ async function loadTodayAttendance() {
             // Update button states
             document.getElementById('punchInBtn').disabled = attendance.status === 'punched-in';
             document.getElementById('punchOutBtn').disabled = attendance.status === 'punched-out';
+            
+            console.log('✅ Attendance UI updated');
         } else {
             document.getElementById('statusDisplay').textContent = 'Not Checked In';
             document.getElementById('punchInBtn').disabled = false;
             document.getElementById('punchOutBtn').disabled = true;
+            console.log('ℹ️ No attendance record for today');
         }
     } catch (error) {
-        console.error('Error loading attendance:', error);
+        console.error('❌ Error loading attendance:', error);
+        showAlert('Failed to load attendance: ' + error.message, 'error');
     }
 }
 
 // Punch In
 async function punchIn() {
+    console.log('🔄 Sending punch-in request to API...');
+    console.log('📍 API URL:', API_URL);
+    
     try {
+        if (!authToken) {
+            showAlert('Error: Not authenticated. Please login again.', 'error');
+            return;
+        }
+
         const response = await fetch(`${API_URL}/attendance/punch-in`, {
             method: 'POST',
             headers: {
@@ -196,15 +254,19 @@ async function punchIn() {
         });
 
         const data = await response.json();
+        console.log('📡 Response:', response.status, data);
 
         if (response.ok) {
-            showAlert('Punched in successfully!', 'success');
+            console.log('✅ Punch-In successful');
+            showAlert('✅ Punched in successfully!', 'success');
             loadTodayAttendance();
         } else {
+            console.error('❌ Punch-In failed:', data.message);
             showAlert(data.message || 'Punch in failed', 'error');
         }
     } catch (error) {
-        showAlert('Server error: ' + error.message, 'error');
+        console.error('❌ Punch-In Error:', error);
+        showAlert('❌ Network error: ' + error.message + '\n\nCheck if API is running at: ' + API_URL, 'error');
     }
 }
 

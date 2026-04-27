@@ -7,8 +7,21 @@ const { initializeWhatsApp, getWhatsAppStatus } = require('./services/whatsappSe
 const app = express();
 
 // Middleware
-app.use(cors());
+const corsOptions = {
+  origin: '*', // Allow all origins for deployed version (can be restricted later)
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+app.use(cors(corsOptions));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`📨 ${req.method} ${req.path}`);
+  next();
+});
 
 // Initialize WhatsApp
 if (process.env.WHATSAPP_ENABLED === 'true') {
