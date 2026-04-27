@@ -3,7 +3,7 @@ const router = express.Router();
 const Attendance = require('../models/Attendance');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
-const { sendWhatsAppMessage } = require('../services/whatsappService');
+const { sendWhatsAppMessage, sendWhatsAppChannelMessage } = require('../services/whatsappService');
 
 // Punch In
 router.post('/punch-in', auth, async (req, res) => {
@@ -104,19 +104,22 @@ router.post('/punch-out', auth, async (req, res) => {
     await attendance.save();
     console.log(`✅ Punch-Out successful - Working hours for this cycle: ${attendance.workingHours}`);
 
-    // Get user details for WhatsApp message
+    // Get user details for WhatsApp channel message
     const user = await User.findById(req.userId);
     
-    // Send WhatsApp message to parent
-    let messageResult = { success: false, message: 'Message not sent' };
-    if (user && user.parentPhone && process.env.WHATSAPP_ENABLED === 'true') {
-      messageResult = await sendWhatsAppMessage(
-        user.parentPhone,
+    // Send WhatsApp message to channel (NOT individual parents)
+    let messageResult = { success: false, message: 'Message not posted' };
+    if (user && process.env.WHATSAPP_ENABLED === 'true' && process.env.WHATSAPP_CHANNEL_ID) {
+      console.log(`📱 Posting attendance to WhatsApp channel...`);
+      messageResult = await sendWhatsAppChannelMessage(
         user.name,
+        user.enrollmentNumber,
         attendance.punchInTime,
         attendance.punchOutTime,
         attendance.workingHours
       );
+    } else {
+      console.log(`⚠️ WhatsApp channel not enabled or not configured`);
     }
 
     res.json({
@@ -127,7 +130,7 @@ router.post('/punch-out', auth, async (req, res) => {
         workingHours: attendance.workingHours,
         status: attendance.status
       },
-      parentNotification: {
+      channelNotification: {
         sent: messageResult.success,
         message: messageResult.message || messageResult.error
       }

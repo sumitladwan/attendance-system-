@@ -138,8 +138,83 @@ const getWhatsAppStatus = () => {
   };
 };
 
+// Send WhatsApp message to Channel
+const sendWhatsAppChannelMessage = async (studentName, enrollmentNumber, punchInTime, punchOutTime, workingHours) => {
+  try {
+    // Initialize client if not already done
+    if (!client) {
+      console.log('📱 Client not initialized, initializing now...');
+      initializeWhatsApp();
+    }
+
+    console.log(`⏳ Waiting for WhatsApp client to be ready (current status: ${isClientReady})`);
+
+    // Wait for client to be ready (max 30 seconds)
+    let retries = 0;
+    while (!isClientReady && retries < 30) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      retries++;
+    }
+
+    if (!isClientReady) {
+      console.error('❌ WhatsApp client not ready after 30 seconds');
+      return {
+        success: false,
+        error: 'WhatsApp client not connected. Please scan QR code.',
+        message: 'WhatsApp not ready - scan QR code in terminal'
+      };
+    }
+
+    const channelId = process.env.WHATSAPP_CHANNEL_ID;
+    if (!channelId) {
+      console.error('❌ WHATSAPP_CHANNEL_ID not configured in .env');
+      return {
+        success: false,
+        error: 'Channel not configured',
+        message: 'WhatsApp channel not configured'
+      };
+    }
+
+    console.log(`📱 Sending message to Channel: ${channelId}`);
+
+    // Create message for channel
+    const message = `📌 *ATTENDANCE UPDATE*
+
+👤 *Student:* ${studentName}
+🎓 *Enrollment:* ${enrollmentNumber}
+
+⏱️ *Punch In:* ${new Date(punchInTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+⏱️ *Punch Out:* ${new Date(punchOutTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+⏱️ *Working Hours:* ${workingHours} hours
+
+✅ Attendance recorded successfully`;
+
+    console.log('📨 Sending message to WhatsApp Channel...');
+
+    // Send message to channel
+    const response = await client.sendMessage(channelId, message);
+
+    console.log(`✅ WhatsApp channel message sent. Message ID: ${response.id}`);
+    return {
+      success: true,
+      messageId: response.id,
+      message: 'Attendance posted to WhatsApp channel',
+      channel: channelId
+    };
+  } catch (error) {
+    console.error(`❌ Failed to send WhatsApp channel message: ${error.message}`);
+    console.error('Error details:', error);
+    return {
+      success: false,
+      error: error.message,
+      message: 'Failed to post to channel, but attendance recorded'
+    };
+  }
+};
+
 module.exports = {
   initializeWhatsApp,
   sendWhatsAppMessage,
+  sendWhatsAppChannelMessage,
   getWhatsAppStatus
 };

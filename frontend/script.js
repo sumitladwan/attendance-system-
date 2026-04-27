@@ -343,19 +343,19 @@ async function punchOut() {
             console.log('✅ Punch-Out successful');
             showAlert('✅ Punched out successfully!', 'success');
             
-            // Display WhatsApp notification status
-            if (data.parentNotification) {
+            // Display WhatsApp channel notification status
+            if (data.channelNotification) {
                 const notificationDiv = document.getElementById('whatsappNotification');
                 const notificationMsg = document.getElementById('whatsappMessage');
                 
-                if (data.parentNotification.sent) {
+                if (data.channelNotification.sent) {
                     notificationDiv.className = 'whatsapp-notification';
-                    notificationMsg.textContent = `✅ ${data.parentNotification.message}`;
-                    console.log('📱 WhatsApp message sent successfully');
+                    notificationMsg.textContent = `📱 ✅ ${data.channelNotification.message}`;
+                    console.log('📱 Attendance posted to WhatsApp channel successfully');
                 } else {
                     notificationDiv.className = 'whatsapp-notification error';
-                    notificationMsg.textContent = `⚠️ ${data.parentNotification.message}`;
-                    console.log('📱 WhatsApp message failed:', data.parentNotification.message);
+                    notificationMsg.textContent = `📱 ⚠️ ${data.channelNotification.message}`;
+                    console.log('📱 Attendance channel post failed:', data.channelNotification.message);
                 }
                 notificationDiv.style.display = 'block';
             }
