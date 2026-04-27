@@ -25,6 +25,11 @@ const userSchema = new mongoose.Schema({
     required: [true, 'Please provide enrollment number'],
     unique: true
   },
+  parentPhone: {
+    type: String,
+    required: [true, 'Please provide parent phone number'],
+    match: [/^[0-9]{10}$/, 'Please provide a valid 10-digit phone number']
+  },
   createdAt: {
     type: Date,
     default: Date.now

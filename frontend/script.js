@@ -15,10 +15,16 @@ async function register() {
     const name = document.getElementById('registerName').value.trim();
     const email = document.getElementById('registerEmail').value.trim();
     const enrollmentNumber = document.getElementById('enrollmentNumber').value.trim();
+    const parentPhone = document.getElementById('parentPhone').value.trim();
     const password = document.getElementById('registerPassword').value;
 
-    if (!name || !email || !enrollmentNumber || !password) {
+    if (!name || !email || !enrollmentNumber || !parentPhone || !password) {
         showAlert('Please fill all fields', 'error');
+        return;
+    }
+
+    if (!/^[0-9]{10}$/.test(parentPhone)) {
+        showAlert('Parent phone number must be 10 digits', 'error');
         return;
     }
 
@@ -37,6 +43,7 @@ async function register() {
                 name,
                 email,
                 enrollmentNumber,
+                parentPhone,
                 password
             })
         });
@@ -113,6 +120,7 @@ function showDashboard() {
     // Set user info
     document.getElementById('studentName').textContent = currentUser.name;
     document.getElementById('enrollmentDisplay').textContent = currentUser.enrollmentNumber;
+    document.getElementById('parentPhoneDisplay').textContent = currentUser.parentPhone;
     
     // Load attendance data
     loadTodayAttendance();
@@ -132,6 +140,7 @@ function showLoginForm() {
     document.getElementById('registerName').value = '';
     document.getElementById('registerEmail').value = '';
     document.getElementById('enrollmentNumber').value = '';
+    document.getElementById('parentPhone').value = '';
     document.getElementById('registerPassword').value = '';
 }
 

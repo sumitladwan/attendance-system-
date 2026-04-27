@@ -12,10 +12,10 @@ const generateToken = (id) => {
 // Register User
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, enrollmentNumber } = req.body;
+    const { name, email, password, enrollmentNumber, parentPhone } = req.body;
 
     // Validation
-    if (!name || !email || !password || !enrollmentNumber) {
+    if (!name || !email || !password || !enrollmentNumber || !parentPhone) {
       return res.status(400).json({ message: 'Please provide all required fields' });
     }
 
@@ -26,7 +26,7 @@ router.post('/register', async (req, res) => {
     }
 
     // Create new user
-    user = new User({ name, email, password, enrollmentNumber });
+    user = new User({ name, email, password, enrollmentNumber, parentPhone });
     await user.save();
 
     // Generate token
@@ -39,7 +39,8 @@ router.post('/register', async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        enrollmentNumber: user.enrollmentNumber
+        enrollmentNumber: user.enrollmentNumber,
+        parentPhone: user.parentPhone
       }
     });
   } catch (error) {
@@ -79,7 +80,8 @@ router.post('/login', async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        enrollmentNumber: user.enrollmentNumber
+        enrollmentNumber: user.enrollmentNumber,
+        parentPhone: user.parentPhone
       }
     });
   } catch (error) {
